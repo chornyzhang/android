@@ -32,33 +32,50 @@ import java.util.List;
  * created by xiaoyu.zhang at 2017/2/25
  */
 public class MainActivity extends Activity implements XListView.IXListViewListener {
+    //the whole list from json
     private List<ItemEntity> data_item = new ArrayList<ItemEntity>();
+    //current page list
     private List<ItemEntity> data_current = new ArrayList<ItemEntity>();
     private XListView lv_news;
     private TextView tv_tittle;
     private CommonAdapter adapter;
-    int dataIndex = 0;
     int pageSize = 5;
-    int maxPage = 3;
+    int maxPage = 0;
     int pageIndex = 1;
     Handler handler_updateUI = new Handler()
     {
         @Override
         public void handleMessage(Message msg) {
-            if( msg.arg1 == 100 ){
-                String tittle = (String) msg.obj;
-                tv_tittle.setText(tittle);
-                upDateData();
-            }
-
+            //update UI
+	switch(msg.what){
+        case 10:
+            getCurrentPageData();
+            upDateData();
+            adapter.notifyDataSetChanged();
+            onLoad();
+            break;
+        case 100:
+            String tittle = (String) msg.obj;
+            tv_tittle.setText(tittle);
+        if(data_item.size()%pageSize == 0) {
+            maxPage=data_item.size()/pageSize;
+        }
+        else{
+            maxPage=data_item.size()/pageSize+1;
+        }
+            Message message = Message.obtain();
+            message.what=10;
+            handler_updateUI.sendMessage(message);
+            break;
+	}
         }
     };
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        init();
-        LoadData();
+        init();//mount component
+        LoadData();//get and parse the jason
     }
 
     private void init() {
@@ -68,6 +85,7 @@ public class MainActivity extends Activity implements XListView.IXListViewListen
         lv_news.setXListViewListener(MainActivity.this);
     }
 
+    //new thread to request network
     private void LoadData(){
         new Thread(){
             @Override
@@ -77,7 +95,7 @@ public class MainActivity extends Activity implements XListView.IXListViewListen
                     String json = null;
                     json = new String(result, "utf-8");
                     Log.i("xiaoyu", "json=" + json);
-
+                    //use android original function to parse the jason
                     JSONObject obj = new JSONObject(json);
                     String bTittle = obj.getString("title");
                     Log.i("xiaoyu", "bTittle = "+bTittle);
@@ -94,7 +112,7 @@ public class MainActivity extends Activity implements XListView.IXListViewListen
                     }
                     Message message = Message.obtain();
                     message.obj = bTittle;
-                    message.arg1 = 100;
+                    message.what = 100;
                     handler_updateUI.sendMessage(message);
 
                 } catch (Exception e) {
@@ -104,24 +122,29 @@ public class MainActivity extends Activity implements XListView.IXListViewListen
         }.start();
     }
 
-    private List<ItemEntity> getCurrentPageData() {
-        if( pageIndex<maxPage ) {
-            for (int i = dataIndex; i < pageSize; i++) {
-                data_current.add(data_item.get(i));
-            }
-        }else if(pageIndex == maxPage){
-            for (int i = 0; i < 4; i++) {
-                data_current.add(data_item.get(i));
-            }
+    //current page data source
+    private void getCurrentPageData() {
+        if(pageIndex>maxPage){
+            Toast.makeText(getApplicationContext(),"没有更多数据",Toast.LENGTH_SHORT).show();
         }else{
-            Toast.makeText(getApplicationContext(),"没有更多数据了!",Toast.LENGTH_SHORT);
+            if(data_item.size()/pageSize != 0){
+                for(int i=0;i<pageSize;i++){
+                    data_current.add(data_item.get(i));
+                    data_item.remove(i);
+                }
+            }else{
+                for(int i=0;i<data_item.size()%pageSize;i++){
+                    data_current.add(data_item.get(i));
+                    data_item.remove(i);
+                }
+            }
         }
-        return data_current;
     }
 
+    //update the date source
     private void upDateData(){
         lv_news.setAdapter(adapter = new CommonAdapter<ItemEntity>(
-                getApplicationContext(), getCurrentPageData(),
+                getApplicationContext(),data_current,
                 R.layout.item_news) {
             @Override
             public void convert(ViewHolder helper, ItemEntity item) {
@@ -130,6 +153,9 @@ public class MainActivity extends Activity implements XListView.IXListViewListen
                 TextView tv_sTittile = helper.getView(R.id.tv_stittle);
                 tv_sTittile.setText(item.getDescription());
                 ImageView iv_icon = helper.getView(R.id.iv_icon);
+                if (null == iv_icon.getDrawable()) {
+                    iv_icon.setImageResource(R.mipmap.ic_launcher);//placeholder icon
+                }
                 ImageLoader.getInstance().displayImage(item.getImageHref(), iv_icon);
             }
         });
@@ -145,7 +171,6 @@ public class MainActivity extends Activity implements XListView.IXListViewListen
 
     @Override
     public void onRefresh() {
-        data_current.clear();
         getCurrentPageData();
         upDateData();
         adapter.notifyDataSetChanged();
@@ -154,11 +179,9 @@ public class MainActivity extends Activity implements XListView.IXListViewListen
 
     @Override
     public void onLoadMore() {
-        dataIndex = dataIndex + 5;
-        pageIndex++;
-        getCurrentPageData();
-        upDateData();
-        adapter.notifyDataSetChanged();
-        onLoad();
+	     pageIndex++;
+      	 Message message = Message.obtain();
+         message.what = 10;
+         handler_updateUI.sendMessage(message);
     }
 }

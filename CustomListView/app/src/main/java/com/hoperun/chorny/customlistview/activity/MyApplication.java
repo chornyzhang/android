@@ -1,7 +1,6 @@
 package com.hoperun.chorny.customlistview.activity;
 import android.app.Application;
 import android.content.Context;
-
 import com.nostra13.universalimageloader.cache.disc.naming.Md5FileNameGenerator;
 import com.nostra13.universalimageloader.core.ImageLoader;
 import com.nostra13.universalimageloader.core.ImageLoaderConfiguration;
